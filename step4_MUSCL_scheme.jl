@@ -1,9 +1,11 @@
 """
-1D Euler equations を Riemann solver + Forward Euler で解く
+1D Euler equations を MUSCL + HLL + SSPRK2 で解く
 """
 
 include("common.jl")
 include("riemann_solvers.jl")
+include("runge-kutta.jl")
+using .RungeKutta
 
 # ---------------------------------------------------------------------------
 # MUSCLスキーム
@@ -56,7 +58,7 @@ function MUSCL(cfg::Config; U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2:: Ve
 end
 
 # ---------------------------------------------------------------------------
-# リミッタ関数 (すべて double 形式: x, y の2引数)
+# リミタ関数 (すべて double 形式: x, y の2引数)
 # ---------------------------------------------------------------------------
 
 """minmod(x, y): 同符号なら絶対値の小さい方, 異符号なら 0."""
@@ -89,7 +91,7 @@ function superbee(x::Float64, y::Float64)::Float64
 end
 
 """
-MUSCL 再構成の共通ロジック. リミタ関数 `limiter(x,y)` を引数で受け取る.
+Limited MUSCL の共通ロジック. リミタ関数 `limiter(x,y)` を引数で受け取る.
 """
 function MUSCL_limited(cfg::Config, limiter::Function;
                        U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2::Vec3,
@@ -141,12 +143,52 @@ function safe_reconstruct(U_L::Vec3, U_R::Vec3, U_i::Vec3, U_ip1::Vec3, gamma::F
 end
 
 # ---------------------------------------------------------------------------
+# 空間離散化 (MUSCL + HLL フラックス → RHS)
+# ---------------------------------------------------------------------------
+
+"""
+MUSCL 再構成 + HLL フラックスから空間 RHS L(U) を計算する.
+"""
+function compute_rhs(U_arr::Vector{Vec3}, muscl_func::Function,
+                     cfg::Config, i_start::Int, i_end::Int)
+    L = fill(Vec3(0.0, 0.0, 0.0), length(U_arr))
+    @inbounds for i in i_start:i_end
+        # 界面 i-1/2
+        U_L_left, U_R_left = muscl_func(cfg;
+            U_minus=U_arr[i-2], U_i=U_arr[i-1], U_plus=U_arr[i], U_plus2=U_arr[i+1])
+        U_L_left, U_R_left = safe_reconstruct(U_L_left, U_R_left, U_arr[i-1], U_arr[i], cfg.gamma)
+        F_left = HLL(U_L_left, U_R_left, cfg.gamma)
+
+        # 界面 i+1/2
+        U_L_right, U_R_right = muscl_func(cfg;
+            U_minus=U_arr[i-1], U_i=U_arr[i], U_plus=U_arr[i+1], U_plus2=U_arr[i+2])
+        U_L_right, U_R_right = safe_reconstruct(U_L_right, U_R_right, U_arr[i], U_arr[i+1], cfg.gamma)
+        F_right = HLL(U_L_right, U_R_right, cfg.gamma)
+
+        L[i] = -(F_right - F_left) / cfg.dx
+    end
+    return L
+end
+
+"""
+RungeKutta.rk_step に渡すための RHS 関数を生成する.
+境界条件を適用してから compute_rhs を呼ぶクロージャを返す.
+"""
+function make_rhs_func(muscl_func::Function, cfg::Config, i_start::Int, i_end::Int)
+    return function(_t, U_arr)
+        U_bc = copy(U_arr)
+        apply_bc!(U_bc, cfg, i_start, i_end)
+        return compute_rhs(U_bc, muscl_func, cfg, i_start, i_end)
+    end
+end
+
+# ---------------------------------------------------------------------------
 # メインループ
 # ---------------------------------------------------------------------------
 
 """
-4種の MUSCL (no limiter, minmod, van Leer, superbee) + HLL を同時に
-時間発展させ, 比較動画を出力する.
+4種の MUSCL (no limiter, minmod, van Leer, superbee) + HLL + SSPRK2 を
+同時に時間発展させ, 比較動画を出力する.
 
 # Args
 - `cfg`:      計算条件.
@@ -159,12 +201,14 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
 
     x, U0 = create_initial_condition(cfg)
     U_arr = [copy(U0) for _ in 1:n_solvers]
-    U_buf = [copy(U0) for _ in 1:n_solvers]
 
     fig, obs_solvers, obs_exact, title_obs = create_figure_4solvers(x, cfg)
 
     i_start = cfg.n_ghost + 1
     i_end = length(x) - cfg.n_ghost
+
+    tab = RungeKutta.SSPRK2()
+    rhs_funcs = [make_rhs_func(mf, cfg, i_start, i_end) for mf in muscl_funcs]
 
     frames = Tuple{Float64, Vector{Vector{Vec3}}}[]
     push!(frames, (0.0, [copy(u) for u in U_arr]))
@@ -176,42 +220,18 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
         dt = minimum(compute_dt(U_arr[s], cfg.dx, cfg.cfl, cfg.gamma) for s in 1:n_solvers)
 
         for s in 1:n_solvers
-            copyto!(U_buf[s], U_arr[s])
-            for i in i_start:i_end
-                # 界面 i-1/2
-                U_L_left, U_R_left = muscl_funcs[s](cfg;
-                    U_minus=U_arr[s][i-2], U_i=U_arr[s][i-1], U_plus=U_arr[s][i], U_plus2=U_arr[s][i+1])
-                U_L_left, U_R_left = safe_reconstruct(U_L_left, U_R_left, U_arr[s][i-1], U_arr[s][i], cfg.gamma)
-                F_left = HLL(U_L_left, U_R_left, cfg.gamma)
-
-                # 界面 i+1/2
-                U_L_right, U_R_right = muscl_funcs[s](cfg;
-                    U_minus=U_arr[s][i-1], U_i=U_arr[s][i], U_plus=U_arr[s][i+1], U_plus2=U_arr[s][i+2])
-                U_L_right, U_R_right = safe_reconstruct(U_L_right, U_R_right, U_arr[s][i], U_arr[s][i+1], cfg.gamma)
-                F_right = HLL(U_L_right, U_R_right, cfg.gamma)
-
-                L = -(F_right - F_left) / cfg.dx
-                U_buf[s][i] = U_arr[s][i] + dt * L
-            end
-
-            # 境界条件 (ゼロ勾配)
-            for g in 1:cfg.n_ghost
-                U_buf[s][g]            = U_buf[s][i_start]
-                U_buf[s][end - g + 1]  = U_buf[s][i_end]
-            end
-        end
-
-        for s in 1:n_solvers
-            U_arr[s], U_buf[s] = U_buf[s], U_arr[s]
+            U_arr[s] = RungeKutta.rk_step(rhs_funcs[s], t, U_arr[s], dt, tab)
+            apply_bc!(U_arr[s], cfg, i_start, i_end)
 
             # 更新後に非物理的なセルがあれば前ステップの値に戻す
             for i in eachindex(U_arr[s])
                 W = conservative_to_primitive(U_arr[s][i], cfg.gamma)
                 if W[1] <= 0.0 || W[3] <= 0.0
-                    U_arr[s][i] = U_buf[s][i]
+                    U_arr[s][i] = U0[i]
                 end
             end
         end
+
         t += dt
         step += 1
         @printf("step=%6d, t=%.6e\n", step, t)
@@ -243,7 +263,7 @@ function main()
         [(0.0, 1.1), (0.0, 1.2e5), (200.0, 450.0), (-0.5, 330.0)],  # ylims (rho, p, T, u)
     )
 
-    solve(cfg; filename="step3.mp4")
+    solve(cfg; filename="step4.mp4")
 end
 
 main()
