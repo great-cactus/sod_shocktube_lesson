@@ -159,7 +159,9 @@ HLL (青), HLLC (黒), 解析解 (赤破線) を重ねて描画.
 `(fig, obs_hll, obs_hllc, obs_exact, title_obs)`
 """
 function create_figure_compare(x::Vector{Float64}, cfg::Config;
-                               ylims_list::Vector{Tuple{Float64, Float64}}=cfg.ylims)
+                               ylims_list::Vector{Tuple{Float64, Float64}}=cfg.ylims,
+                               label1::String="HLL", label2::String="HLLC",
+                               color1::Symbol=:blue, color2::Symbol=:black)
     labels = [L"\rho~\mathrm{[kg/m^3]}", L"p~\mathrm{[Pa]}",
               L"T~\mathrm{[K]}", L"u~\mathrm{[m/s]}"]
 
@@ -184,8 +186,8 @@ function create_figure_compare(x::Vector{Float64}, cfg::Config;
         col = (idx - 1) % 2 + 1
         ax = Axis(fig[row, col], xlabel="x [m]", ylabel=label)
         ylims!(ax, ylims_list[idx])
-        lines!(ax, x, obs_hll[idx],   color=:blue,  label="HLL")
-        lines!(ax, x, obs_hllc[idx],  color=:black,  label="HLLC")
+        lines!(ax, x, obs_hll[idx],   color=color1,  label=label1)
+        lines!(ax, x, obs_hllc[idx],  color=color2,  label=label2)
         lines!(ax, x, obs_exact[idx], color=:red, linestyle=:dash, label="Exact")
         axislegend(ax, position=legend_positions[idx], labelsize=10)
     end
@@ -225,6 +227,74 @@ function update_observables_compare!(obs_hll, obs_hllc, obs_exact, title_obs,
     for (obs, data) in zip(obs_hllc, [rho_hllc, p_hllc, T_hllc, u_hllc])
         obs[] = data
     end
+    for (obs, data) in zip(obs_exact, [exact_fields.rho, exact_fields.p, exact_fields.T, exact_fields.u])
+        obs[] = data
+    end
+    title_obs[] = @sprintf("t = %.4e s", t)
+end
+
+# ---------------------------------------------------------------------------
+# 4ソルバ比較用 (no limiter, minmod, van Leer, superbee)
+# ---------------------------------------------------------------------------
+
+"""
+4 パネルの Figure と Observable を作成する (4ソルバ比較版).
+
+no limiter (灰), minmod (青), van Leer (緑), superbee (橙), 解析解 (赤破線).
+"""
+function create_figure_4solvers(x::Vector{Float64}, cfg::Config;
+                                ylims_list::Vector{Tuple{Float64, Float64}}=cfg.ylims)
+    labels = [L"\rho~\mathrm{[kg/m^3]}", L"p~\mathrm{[Pa]}",
+              L"T~\mathrm{[K]}", L"u~\mathrm{[m/s]}"]
+    solver_names  = ["No limiter", "Minmod", "Van Leer", "Superbee"]
+    solver_colors = [:gray, :blue, :green, :orange]
+
+    exact_cfg = make_exact_config(cfg)
+    exact_fields = ExactSolution.solve(exact_cfg, x, 0.0)
+    rho0, p0, T0, u0 = extract_primitives(
+        [primitive_to_conservative(Vec3(exact_fields.rho[i], exact_fields.u[i], exact_fields.p[i]), cfg.gamma)
+         for i in eachindex(x)], cfg)
+
+    obs_solvers = [[Observable(copy(d)) for d in [rho0, p0, T0, u0]] for _ in 1:4]
+    obs_exact = [Observable(copy(d)) for d in [exact_fields.rho, exact_fields.p, exact_fields.T, exact_fields.u]]
+    title_obs = Observable("t = 0.0000e+00 s")
+
+    fig = Figure(size=(900, 700))
+    legend_positions = [:rt, :rt, :lt, :lt]
+
+    for (idx, label) in enumerate(labels)
+        row = (idx - 1) ÷ 2 + 1
+        col = (idx - 1) % 2 + 1
+        ax = Axis(fig[row, col], xlabel="x [m]", ylabel=label)
+        ylims!(ax, ylims_list[idx])
+        for s in 1:4
+            lines!(ax, x, obs_solvers[s][idx], color=solver_colors[s], label=solver_names[s])
+        end
+        lines!(ax, x, obs_exact[idx], color=:red, linestyle=:dash, label="Exact")
+        axislegend(ax, position=legend_positions[idx], labelsize=8)
+    end
+
+    Label(fig[0, :], title_obs, fontsize=14)
+
+    return fig, obs_solvers, obs_exact, title_obs
+end
+
+"""
+Observable を 4 つの U_arr と時刻 t で更新する (4ソルバ比較版).
+"""
+function update_observables_4solvers!(obs_solvers, obs_exact, title_obs,
+                                      x::Vector{Float64},
+                                      U_list::Vector{Vector{Vec3}},
+                                      t::Float64, cfg::Config)
+    for (s, U_arr) in enumerate(U_list)
+        rho, p, T, u = extract_primitives(U_arr, cfg)
+        for (obs, data) in zip(obs_solvers[s], [rho, p, T, u])
+            obs[] = data
+        end
+    end
+
+    exact_cfg = make_exact_config(cfg)
+    exact_fields = ExactSolution.solve(exact_cfg, x, t)
     for (obs, data) in zip(obs_exact, [exact_fields.rho, exact_fields.p, exact_fields.T, exact_fields.u])
         obs[] = data
     end
