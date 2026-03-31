@@ -23,7 +23,7 @@ function MUSCL(cfg::Config; U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2:: Ve
     D_rho_plus  = W_plus2[1] - W_plus[1]
 
     rho_L = W_i[1] + 0.25 * ( (1-kappa)*D_rho_minus + (1+kappa)*D_rho_i)
-    rho_R = W_plus[1] + 0.25 * ( (1+kappa)*D_rho_i + (1-kappa)*D_rho_plus )
+    rho_R = W_plus[1] - 0.25 * ( (1+kappa)*D_rho_i + (1-kappa)*D_rho_plus )
 
     # u
     D_u_minus = W_i[2] - W_minus[2]
@@ -31,7 +31,7 @@ function MUSCL(cfg::Config; U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2:: Ve
     D_u_plus  = W_plus2[2] - W_plus[2]
 
     u_L = W_i[2] + 0.25 * ( (1-kappa)*D_u_minus + (1+kappa)*D_u_i)
-    u_R = W_plus[2] + 0.25 * ( (1+kappa)*D_u_i + (1-kappa)*D_u_plus )
+    u_R = W_plus[2] - 0.25 * ( (1+kappa)*D_u_i + (1-kappa)*D_u_plus )
 
     # p
     D_p_minus = W_i[3] - W_minus[3]
@@ -39,7 +39,7 @@ function MUSCL(cfg::Config; U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2:: Ve
     D_p_plus  = W_plus2[3] - W_plus[3]
 
     p_L = W_i[3] + 0.25 * ( (1-kappa)*D_p_minus + (1+kappa)*D_p_i)
-    p_R = W_plus[3] + 0.25 * ( (1+kappa)*D_p_i + (1-kappa)*D_p_plus )
+    p_R = W_plus[3] - 0.25 * ( (1+kappa)*D_p_i + (1-kappa)*D_p_plus )
 
     # 負密度・負圧力が出たら1次精度にフォールバック
     if rho_L <= 0.0 || p_L <= 0.0
@@ -171,12 +171,31 @@ function compute_rhs(U_arr::Vector{Vec3}, muscl_func::Function,
 end
 
 """
+RK中間段階で発生しうる非物理的な状態 (負密度・負圧力) をクランプする.
+"""
+function clamp_nonphysical!(U::Vector{Vec3}, gamma::Float64)
+    EPS_RHO = 1.0e-10
+    EPS_P   = 1.0e-10
+    @inbounds for i in eachindex(U)
+        rho = U[i][1]
+        u   = U[i][2] / U[i][1]
+        p   = (gamma - 1.0) * (U[i][3] - 0.5 * U[i][2]^2 / U[i][1])
+        if rho <= 0.0 || p <= 0.0
+            rho_c = max(rho, EPS_RHO)
+            p_c   = max(p, EPS_P)
+            U[i] = primitive_to_conservative(Vec3(rho_c, u, p_c), gamma)
+        end
+    end
+end
+
+"""
 RungeKutta.rk_step に渡すための RHS 関数を生成する.
 境界条件を適用してから compute_rhs を呼ぶクロージャを返す.
 """
 function make_rhs_func(muscl_func::Function, cfg::Config, i_start::Int, i_end::Int)
     return function(_t, U_arr)
         U_bc = copy(U_arr)
+        clamp_nonphysical!(U_bc, cfg.gamma)
         apply_bc!(U_bc, cfg, i_start, i_end)
         return compute_rhs(U_bc, muscl_func, cfg, i_start, i_end)
     end
