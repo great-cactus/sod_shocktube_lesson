@@ -58,65 +58,53 @@ function MUSCL(cfg::Config; U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2:: Ve
 end
 
 # ---------------------------------------------------------------------------
-# リミタ関数 (すべて double 形式: x, y の2引数)
+# リミタ関数 (ratio 形式: 勾配比 r を受け取りスカラー φ(r) を返す)
 # ---------------------------------------------------------------------------
 
-"""minmod(x, y): 同符号なら絶対値の小さい方, 異符号なら 0."""
-function minmod(x::Float64, y::Float64)::Float64
-    if x * y <= 0.0
-        return 0.0
-    else
-        return sign(x) * min(abs(x), abs(y))
-    end
+"""minmod(r): 最も拡散的なリミタ."""
+function limiter_minmod(r::Float64)::Float64
+    return max(0.0, min(r, 1.0))
 end
 
-"""van Leer(x, y): 同符号なら調和平均, 異符号なら 0."""
-function van_leer(x::Float64, y::Float64)::Float64
-    if x * y <= 0.0
-        return 0.0
-    else
-        return 2.0 * x * y / (x + y)
-    end
+"""van Leer(r): バランス型リミタ."""
+function limiter_van_leer(r::Float64)::Float64
+    return (r + abs(r)) / (1.0 + abs(r))
 end
 
-"""superbee(x, y): minmod の max をとる."""
-function superbee(x::Float64, y::Float64)::Float64
-    if x * y <= 0.0
-        return 0.0
-    else
-        s = sign(x)
-        ax, ay = abs(x), abs(y)
-        return s * max(min(2.0 * ax, ay), min(ax, 2.0 * ay))
-    end
+"""superbee(r): 最も圧縮的なリミタ."""
+function limiter_superbee(r::Float64)::Float64
+    return max(0.0, min(2.0 * r, 1.0), min(r, 2.0))
 end
 
 """
-Limited MUSCL の共通ロジック. リミタ関数 `limiter(x,y)` を引数で受け取る.
+単一リミタ MUSCL 再構成.
+
+セルごとに勾配比 r から φ(r) を求め, 制限された勾配で界面値を再構成する.
+W_L = W_i    + 0.5 · φ(r_i)    · Δ_{i-1/2}
+W_R = W_{i+1} - 0.5 · φ(r_{i+1}) · Δ_{i+3/2}
 """
 function MUSCL_limited(cfg::Config, limiter::Function;
                        U_minus::Vec3, U_i::Vec3, U_plus::Vec3, U_plus2::Vec3,
-                       kappa::Float64 = 1.0/3.0)
+                       kappa::Float64 = 0.0)
     W_minus = conservative_to_primitive(U_minus, cfg.gamma)
     W_i     = conservative_to_primitive(U_i, cfg.gamma)
     W_plus  = conservative_to_primitive(U_plus, cfg.gamma)
     W_plus2 = conservative_to_primitive(U_plus2, cfg.gamma)
 
-    beta = (3.0 - kappa) / (1.0 - kappa)
-
     wL = MVector{3, Float64}(0.0, 0.0, 0.0)
     wR = MVector{3, Float64}(0.0, 0.0, 0.0)
     for k in 1:3
-        D_minus = W_i[k] - W_minus[k]
-        D_i     = W_plus[k] - W_i[k]
-        D_plus  = W_plus2[k] - W_plus[k]
+        D_minus = W_i[k] - W_minus[k]       # Δ_{i-1/2}
+        D_i     = W_plus[k] - W_i[k]        # Δ_{i+1/2}
+        D_plus  = W_plus2[k] - W_plus[k]    # Δ_{i+3/2}
 
-        D_back_L = limiter(D_minus, beta * D_i)
-        D_fwd_L  = limiter(D_i, beta * D_minus)
-        D_back_R = limiter(D_i, beta * D_plus)
-        D_fwd_R  = limiter(D_plus, beta * D_i)
+        # 左状態: セル i から右界面へ外挿
+        r_L = (abs(D_i) > 1.0e-30) ? D_minus / D_i : 0.0
+        wL[k] = W_i[k] + 0.5 * limiter(r_L) * D_i
 
-        wL[k] = W_i[k]    + 0.25 * ((1.0 - kappa) * D_back_L + (1.0 + kappa) * D_fwd_L)
-        wR[k] = W_plus[k] - 0.25 * ((1.0 + kappa) * D_back_R + (1.0 - kappa) * D_fwd_R)
+        # 右状態: セル i+1 から左界面へ外挿
+        r_R = (abs(D_i) > 1.0e-30) ? D_plus / D_i : 0.0
+        wR[k] = W_plus[k] - 0.5 * limiter(r_R) * D_i
     end
 
     W_L = Vec3(wL[1], wL[2], wL[3])
@@ -127,9 +115,9 @@ function MUSCL_limited(cfg::Config, limiter::Function;
     return U_L, U_R
 end
 
-MUSCL_minmod(cfg::Config; kwargs...)   = MUSCL_limited(cfg, minmod; kwargs...)
-MUSCL_van_leer(cfg::Config; kwargs...) = MUSCL_limited(cfg, van_leer; kwargs...)
-MUSCL_superbee(cfg::Config; kwargs...) = MUSCL_limited(cfg, superbee; kwargs...)
+MUSCL_minmod(cfg::Config; kwargs...)   = MUSCL_limited(cfg, limiter_minmod; kwargs...)
+MUSCL_van_leer(cfg::Config; kwargs...) = MUSCL_limited(cfg, limiter_van_leer; kwargs...)
+MUSCL_superbee(cfg::Config; kwargs...) = MUSCL_limited(cfg, limiter_superbee; kwargs...)
 
 """
 再構成結果が非物理的 (負密度・負圧力) なら1次精度 (セル平均値) にフォールバック.
