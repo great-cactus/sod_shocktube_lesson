@@ -28,14 +28,6 @@ function compute_rhs(U_arr::Vector{Vec3}, cfg::Config, i_start::Int, i_end::Int)
     return L
 end
 
-"""ゼロ勾配境界条件を適用する."""
-function apply_bc!(U::Vector{Vec3}, cfg::Config, i_start::Int, i_end::Int)
-    for g in 1:cfg.n_ghost
-        U[g]           = U[i_start]
-        U[end - g + 1] = U[i_end]
-    end
-end
-
 """
 RungeKutta.rk_step に渡すための RHS 関数を生成する.
 境界条件を適用してから compute_rhs を呼ぶクロージャを返す.

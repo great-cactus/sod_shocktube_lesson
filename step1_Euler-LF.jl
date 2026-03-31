@@ -87,10 +87,7 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
         end
 
         # 境界条件 (ゼロ勾配)
-        @inbounds for g in 1:cfg.n_ghost
-            U_buf[g] = U_buf[i_start]
-            U_buf[end - g + 1] = U_buf[i_end]
-        end
+        apply_bc!(U_buf, cfg, i_start, i_end)
 
         U_arr, U_buf = U_buf, U_arr
         t += dt

@@ -214,4 +214,26 @@ function create_initial_condition(cfg::Config)
     return x, U_arr
 end
 
+# ---------------------------------------------------------------------------
+# 境界条件
+# ---------------------------------------------------------------------------
+
+"""
+ゼロ勾配境界条件を適用する.
+
+ゴーストセルを最も近い内部セルの値でコピーする.
+
+# Args
+- `U`:       保存変数の配列.
+- `cfg`:     計算条件.
+- `i_start`: 内部セルの開始インデックス.
+- `i_end`:   内部セルの終了インデックス.
+"""
+function apply_bc!(U::Vector{Vec3}, cfg::Config, i_start::Int, i_end::Int)
+    for g in 1:cfg.n_ghost
+        U[g]           = U[i_start]
+        U[end - g + 1] = U[i_end]
+    end
+end
+
 include("plotting.jl")

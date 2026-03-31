@@ -67,12 +67,8 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
         end
 
         # 境界条件 (ゼロ勾配)
-        for g in 1:cfg.n_ghost
-            buf_hll[g]            = buf_hll[i_start]
-            buf_hll[end - g + 1]  = buf_hll[i_end]
-            buf_hllc[g]           = buf_hllc[i_start]
-            buf_hllc[end - g + 1] = buf_hllc[i_end]
-        end
+        apply_bc!(buf_hll,  cfg, i_start, i_end)
+        apply_bc!(buf_hllc, cfg, i_start, i_end)
 
         U_hll,  buf_hll  = buf_hll,  U_hll
         U_hllc, buf_hllc = buf_hllc, U_hllc
