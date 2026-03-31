@@ -329,8 +329,8 @@ function main()
         1e4, 278.24, 0.0,       # p_R, T_R, u_R
         28.96e-3, 1.4,          # MW, gamma
         -5.0, 5.0, 0.0,         # x_left, x_right, x_center
-        1e-3, 1,                 # dx, n_ghost
-        0.9, 0.01, 100,         # cfl, t_max, out_interval
+        1e-1, 1,                 # dx, n_ghost
+        0.5, 0.008, 1,         # cfl, t_max, out_interval
         [(0.0, 1.1), (0.0, 1.2e5), (200.0, 450.0), (-0.5, 330.0)],  # ylims (rho, p, T, u)
     )
     solve(cfg; filename="step1.mp4")
