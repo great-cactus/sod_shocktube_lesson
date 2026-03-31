@@ -108,7 +108,7 @@ function main()
         [(0.0, 1.1), (0.0, 1.2e5), (200.0, 450.0), (-0.5, 330.0)],  # ylims (rho, p, T, u)
     )
 
-    solve(cfg; filename="step2.mp4")
+    solve(cfg; filename="step3.mp4")
 end
 
 main()

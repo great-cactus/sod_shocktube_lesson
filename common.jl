@@ -1,5 +1,7 @@
 """
-1D Euler equations を Riemann solver + Forward Euler で解く
+Sod shock tube: 共通定義.
+
+全ステップで共有する定数, Config, 状態変数変換, 初期条件生成, プロット機能.
 """
 
 include("exact_solution.jl")
@@ -159,7 +161,7 @@ CFL 条件を満たす時間刻み幅を計算する.
 function compute_dt(U_arr::Vector{Vec3}, dx::Float64,
                     cfl::Float64, gamma::Float64)::Float64
     max_speed = 0.0
-    for i in eachindex(U_arr)
+    @inbounds for i in eachindex(U_arr)
         W = conservative_to_primitive(U_arr[i], gamma)
         rho, u, p = W[1], W[2], W[3]
         a = sound_speed(p, rho, gamma)
@@ -183,7 +185,7 @@ end
 
 # Returns
 - `x`:     座標配列. ゴーストセル含む.
-- `U_arr`: 保存変数の配列 (Vector{Vector{Float64}}).
+- `U_arr`: 保存変数の配列 (Vector{Vec3}).
 """
 function create_initial_condition(cfg::Config)
     n_cells = round(Int, (cfg.x_right - cfg.x_left) / cfg.dx) + 1
@@ -213,123 +215,3 @@ function create_initial_condition(cfg::Config)
 end
 
 include("plotting.jl")
-
-# ---------------------------------------------------------------------------
-# Riemman Solver
-# ---------------------------------------------------------------------------
-
-function HLL(U_L::Vec3, U_R::Vec3, gamma::Float64)::Vec3
-    W_L = conservative_to_primitive(U_L, gamma)
-    W_R = conservative_to_primitive(U_R, gamma)
-    F_L = compute_flux(U_L, gamma)
-    F_R = compute_flux(U_R, gamma)
-    a_L = sound_speed(W_L[3], W_L[1], gamma)
-    a_R = sound_speed(W_R[3], W_R[1], gamma)
-    u_L = W_L[2]
-    u_R = W_R[2]
-
-    S_L = min(u_L, u_R) - max(a_L, a_R)
-    S_R = max(u_L, u_R) + max(a_L, a_R)
-
-    if S_L > 0.0
-        F_HLL = F_L
-    elseif S_R < 0.0
-        F_HLL = F_R
-    else
-        F_HLL = (S_R * F_L - S_L * F_R + S_R * S_L * (U_R - U_L)) / (S_R - S_L)
-    end
-
-    return F_HLL
-end
-
-# ---------------------------------------------------------------------------
-# メインループ
-# ---------------------------------------------------------------------------
-
-"""
-Lax-Friedrichs + Forward Euler で shock tube を時間発展させ, MP4 動画を出力する.
-
-1. 初期条件を生成
-2. 各タイムステップで:
-   - CFL 条件から dt を決定
-   - 各セル界面の数値フラックスを計算
-   - Forward Euler で保存変数を更新
-   - ゼロ勾配境界条件を適用
-3. out_interval ステップごとに動画フレームを記録
-
-# Args
-- `cfg`:      計算条件.
-- `filename`: 出力ファイル名 (デフォルト "movie.mp4").
-- `fps`:      フレームレート (デフォルト 30).
-"""
-function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
-    x, U_arr = create_initial_condition(cfg)
-
-    fig, obs_num, obs_exact, title_obs = create_figure(x, cfg)
-
-    i_start = cfg.n_ghost + 1
-    i_end = length(x) - cfg.n_ghost
-
-    # フレームデータを収集 (時刻, U_arr のスナップショット)
-    frames = Tuple{Float64, Vector{Vec3}}[]
-    push!(frames, (0.0, copy(U_arr)))
-
-    U_buf = copy(U_arr)
-    t = 0.0
-    step = 0
-
-    while t < cfg.t_max
-        dt = compute_dt(U_arr, cfg.dx, cfg.cfl, cfg.gamma)
-
-        # 内部セルの更新
-        copyto!(U_buf, U_arr)
-        @inbounds for i in i_start:i_end
-            F_left = HLL(U_arr[i-1], U_arr[i], cfg.gamma)
-            F_right = HLL(U_arr[i], U_arr[i+1], cfg.gamma)
-            L = -(F_right - F_left) / cfg.dx
-
-            # Forward Euler method
-            U_buf[i] = U_arr[i] + dt * L
-        end
-
-        # 境界条件 (ゼロ勾配)
-        for g in 1:cfg.n_ghost
-            U_buf[g] = U_buf[i_start]
-            U_buf[end - g + 1] = U_buf[i_end]
-        end
-
-        U_arr, U_buf = U_buf, U_arr
-        t += dt
-        step += 1
-        @printf("step=%6d, t=%.6e\n", step, t)
-
-        if step % cfg.out_interval == 0
-            push!(frames, (t, copy(U_arr)))
-        end
-    end
-
-    # 動画を記録
-    println("Recording $(length(frames)) frames to $filename ...")
-    record(fig, filename, frames; framerate=fps) do (t_frame, U_frame)
-        update_observables!(obs_num, obs_exact, title_obs, x, U_frame, t_frame, cfg)
-    end
-    println("Done: $filename")
-end
-
-# ---------------------------------------------------------------------------
-# 実行
-# ---------------------------------------------------------------------------
-function main()
-    cfg = Config(
-        1e5, 348.24, 0.0,       # p_L, T_L, u_L
-        1e4, 278.24, 0.0,       # p_R, T_R, u_R
-        28.96e-3, 1.4,          # MW, gamma
-        -5.0, 5.0, 0.0,         # x_left, x_right, x_center
-        1e-2, 1,                 # dx, n_ghost
-        0.9, 0.01, 10,         # cfl, t_max, out_interval
-        [(0.0, 1.1), (0.0, 1.2e5), (200.0, 450.0), (-0.5, 10.0)],  # ylims (rho, p, T, u)
-    )
-    solve(cfg; filename="step2.mp4")
-end
-
-main()
