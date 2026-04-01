@@ -300,3 +300,98 @@ function update_observables_4solvers!(obs_solvers, obs_exact, title_obs,
     end
     title_obs[] = @sprintf("t = %.4e s", t)
 end
+
+# ---------------------------------------------------------------------------
+# 保存量の時間変化動画
+# ---------------------------------------------------------------------------
+
+"""
+保存量の時間変化を動画として記録する.
+
+各保存量 (質量, 運動量, エネルギー) の初期値からの絶対変化量を時系列で表示する.
+
+# Args
+- `filename`:      出力ファイル名.
+- `cons_history`:  保存量の履歴. 各要素は (時刻, ソルバごとの Vec3 の配列).
+- `cfg`:           計算条件.
+- `solver_names`:  ソルバ名の配列.
+- `solver_colors`: ソルバの色の配列.
+- `fps`:           フレームレート.
+"""
+function record_conservation(filename::String,
+                              cons_history::Vector{Tuple{Float64, Vector{Vec3}}},
+                              cfg::Config;
+                              solver_names::Vector{String}=["Numerical"],
+                              solver_colors::Vector{Symbol}=[:black],
+                              fps::Int=30)
+    n_solvers = length(solver_names)
+    n_frames = length(cons_history)
+
+    # 全フレームのデータを事前計算
+    t_all = [cons_history[i][1] for i in 1:n_frames]
+    init_vals = cons_history[1][2]
+
+    # 各ソルバの差分時系列: diffs[solver][quantity][frame] = U_i - U_0
+    diffs = [[Vector{Float64}(undef, n_frames) for _ in 1:3] for _ in 1:n_solvers]
+    for i in 1:n_frames
+        for s in 1:n_solvers
+            curr = cons_history[i][2][s]
+            init = init_vals[s]
+            for k in 1:3
+                diffs[s][k][i] = curr[k] - init[k]
+            end
+        end
+    end
+
+    quantity_labels = [
+        L"\Delta(\Sigma\rho\cdot\Delta x)~\mathrm{[kg/m^2]}",
+        L"\Delta(\Sigma\rho u\cdot\Delta x)~\mathrm{[kg/(m{\cdot}s)]}",
+        L"\Delta(\Sigma\rho E\cdot\Delta x)~\mathrm{[J/m^2]}",
+    ]
+
+    fig = Figure(size=(800, 600))
+    title_obs = Observable(@sprintf("Conservation — t = %.4e s", 0.0))
+    Label(fig[0, :], title_obs, fontsize=14)
+
+    # 全データから y 軸範囲を事前計算 (マージン 10%)
+    ylims_cons = Vector{Tuple{Float64, Float64}}(undef, 3)
+    for k in 1:3
+        all_vals = Float64[]
+        for s in 1:n_solvers
+            append!(all_vals, diffs[s][k])
+        end
+        ymin, ymax = extrema(all_vals)
+        margin = max(abs(ymax - ymin) * 0.1, 1.0e-15)
+        ylims_cons[k] = (ymin - margin, ymax + margin)
+    end
+
+    obs_t = Observable(t_all[1:1])
+    obs_diffs = [[Observable(diffs[s][k][1:1]) for k in 1:3] for s in 1:n_solvers]
+
+    for k in 1:3
+        ax = Axis(fig[k, 1],
+                  xlabel=(k == 3 ? "t [s]" : ""),
+                  ylabel=quantity_labels[k])
+        xlims!(ax, (0.0, cfg.t_max * 1.02))
+        ylims!(ax, ylims_cons[k])
+        for s in 1:n_solvers
+            lines!(ax, obs_t, obs_diffs[s][k],
+                   color=solver_colors[s], label=solver_names[s])
+        end
+        if n_solvers > 1
+            axislegend(ax, position=:lt, labelsize=8)
+        end
+    end
+
+    println("Recording $n_frames conservation frames to $filename ...")
+    record(fig, filename, 1:n_frames; framerate=fps) do idx
+        obs_t[] = t_all[1:idx]
+        for s in 1:n_solvers
+            for k in 1:3
+                obs_diffs[s][k][] = diffs[s][k][1:idx]
+            end
+        end
+        title_obs[] = @sprintf("Conservation — t = %.4e s", t_all[idx])
+    end
+    println("Done: $filename")
+end

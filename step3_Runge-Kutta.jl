@@ -72,6 +72,12 @@ function solve(cfg::Config; filename::String="step3.mp4", fps::Int=30)
     frames = Tuple{Float64, Vector{Vec3}, Vector{Vec3}}[]
     push!(frames, (0.0, copy(U_ssprk3), copy(U_rk4)))
 
+    # 保存量の履歴を収集
+    cons_history = Tuple{Float64, Vector{Vec3}}[]
+    Q_ssprk3_0 = compute_total_conserved(U_ssprk3, cfg.dx, i_start, i_end)
+    Q_rk4_0    = compute_total_conserved(U_rk4,    cfg.dx, i_start, i_end)
+    push!(cons_history, (0.0, [Q_ssprk3_0, Q_rk4_0]))
+
     t = 0.0
     step = 0
 
@@ -92,6 +98,9 @@ function solve(cfg::Config; filename::String="step3.mp4", fps::Int=30)
 
         if step % cfg.out_interval == 0
             push!(frames, (t, copy(U_ssprk3), copy(U_rk4)))
+            Q_ssprk3 = compute_total_conserved(U_ssprk3, cfg.dx, i_start, i_end)
+            Q_rk4    = compute_total_conserved(U_rk4,    cfg.dx, i_start, i_end)
+            push!(cons_history, (t, [Q_ssprk3, Q_rk4]))
         end
     end
 
@@ -102,6 +111,12 @@ function solve(cfg::Config; filename::String="step3.mp4", fps::Int=30)
                                     x, U_ssprk3_frame, U_rk4_frame, t_frame, cfg)
     end
     println("Done: $filename")
+
+    # 保存量の時間変化動画
+    cons_filename = replace(filename, ".mp4" => "_conservation.mp4")
+    record_conservation(cons_filename, cons_history, cfg;
+                         solver_names=["SSPRK3", "RK4"],
+                         solver_colors=[:blue, :green], fps=fps)
 end
 
 # ---------------------------------------------------------------------------

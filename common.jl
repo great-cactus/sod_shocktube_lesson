@@ -236,4 +236,31 @@ function apply_bc!(U::Vector{Vec3}, cfg::Config, i_start::Int, i_end::Int)
     end
 end
 
+# ---------------------------------------------------------------------------
+# 保存量の総和
+# ---------------------------------------------------------------------------
+
+"""
+内部セルの保存量の総和を計算する.
+
+Σ U[k] · dx (k = 1: 質量, 2: 運動量, 3: エネルギー)
+
+# Args
+- `U_arr`:   保存変数の配列.
+- `dx`:      セル幅 [m].
+- `i_start`: 内部セルの開始インデックス.
+- `i_end`:   内部セルの終了インデックス.
+
+# Returns
+Vec3(Σρ·dx, Σρu·dx, ΣρE·dx).
+"""
+function compute_total_conserved(U_arr::Vector{Vec3}, dx::Float64,
+                                  i_start::Int, i_end::Int)::Vec3
+    total = Vec3(0.0, 0.0, 0.0)
+    @inbounds for i in i_start:i_end
+        total = total + U_arr[i] * dx
+    end
+    return total
+end
+
 include("plotting.jl")

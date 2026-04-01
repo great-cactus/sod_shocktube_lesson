@@ -38,6 +38,12 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
     frames = Tuple{Float64, Vector{Vec3}, Vector{Vec3}}[]
     push!(frames, (0.0, copy(U_hll), copy(U_hllc)))
 
+    # 保存量の履歴を収集
+    cons_history = Tuple{Float64, Vector{Vec3}}[]
+    Q_hll0  = compute_total_conserved(U_hll,  cfg.dx, i_start, i_end)
+    Q_hllc0 = compute_total_conserved(U_hllc, cfg.dx, i_start, i_end)
+    push!(cons_history, (0.0, [Q_hll0, Q_hllc0]))
+
     buf_hll  = copy(U_hll)
     buf_hllc = copy(U_hllc)
     t = 0.0
@@ -78,6 +84,9 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
 
         if step % cfg.out_interval == 0
             push!(frames, (t, copy(U_hll), copy(U_hllc)))
+            Q_hll  = compute_total_conserved(U_hll,  cfg.dx, i_start, i_end)
+            Q_hllc = compute_total_conserved(U_hllc, cfg.dx, i_start, i_end)
+            push!(cons_history, (t, [Q_hll, Q_hllc]))
         end
     end
 
@@ -88,6 +97,12 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
                                     x, U_hll_frame, U_hllc_frame, t_frame, cfg)
     end
     println("Done: $filename")
+
+    # 保存量の時間変化動画
+    cons_filename = replace(filename, ".mp4" => "_conservation.mp4")
+    record_conservation(cons_filename, cons_history, cfg;
+                         solver_names=["HLL", "HLLC"],
+                         solver_colors=[:blue, :black], fps=fps)
 end
 
 # ---------------------------------------------------------------------------

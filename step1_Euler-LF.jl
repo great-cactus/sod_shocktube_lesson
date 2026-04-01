@@ -70,6 +70,11 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
     frames = Tuple{Float64, Vector{Vec3}}[]
     push!(frames, (0.0, copy(U_arr)))
 
+    # 保存量の履歴を収集
+    cons_history = Tuple{Float64, Vector{Vec3}}[]
+    Q0 = compute_total_conserved(U_arr, cfg.dx, i_start, i_end)
+    push!(cons_history, (0.0, [Q0]))
+
     U_buf = copy(U_arr)
     t = 0.0
     step = 0
@@ -96,6 +101,8 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
 
         if step % cfg.out_interval == 0
             push!(frames, (t, copy(U_arr)))
+            Q = compute_total_conserved(U_arr, cfg.dx, i_start, i_end)
+            push!(cons_history, (t, [Q]))
         end
     end
 
@@ -105,6 +112,12 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
         update_observables!(obs_num, obs_exact, title_obs, x, U_frame, t_frame, cfg)
     end
     println("Done: $filename")
+
+    # 保存量の時間変化動画
+    cons_filename = replace(filename, ".mp4" => "_conservation.mp4")
+    record_conservation(cons_filename, cons_history, cfg;
+                         solver_names=["Lax-Friedrichs"],
+                         solver_colors=[:black], fps=fps)
 end
 
 # ---------------------------------------------------------------------------

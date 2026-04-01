@@ -220,6 +220,11 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
     frames = Tuple{Float64, Vector{Vector{Vec3}}}[]
     push!(frames, (0.0, [copy(u) for u in U_arr]))
 
+    # 保存量の履歴を収集
+    cons_history = Tuple{Float64, Vector{Vec3}}[]
+    Qs0 = [compute_total_conserved(U_arr[s], cfg.dx, i_start, i_end) for s in 1:n_solvers]
+    push!(cons_history, (0.0, Qs0))
+
     t = 0.0
     step = 0
 
@@ -245,6 +250,8 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
 
         if step % cfg.out_interval == 0
             push!(frames, (t, [copy(U_arr[s]) for s in 1:n_solvers]))
+            Qs = [compute_total_conserved(U_arr[s], cfg.dx, i_start, i_end) for s in 1:n_solvers]
+            push!(cons_history, (t, Qs))
         end
     end
 
@@ -254,6 +261,12 @@ function solve(cfg::Config; filename::String="movie.mp4", fps::Int=30)
         update_observables_4solvers!(obs_solvers, obs_exact, title_obs, x, U_list, t_frame, cfg)
     end
     println("Done: $filename")
+
+    # 保存量の時間変化動画
+    cons_filename = replace(filename, ".mp4" => "_conservation.mp4")
+    record_conservation(cons_filename, cons_history, cfg;
+                         solver_names=["No limiter", "Minmod", "Van Leer", "Superbee"],
+                         solver_colors=[:gray, :blue, :green, :orange], fps=fps)
 end
 
 # ---------------------------------------------------------------------------
