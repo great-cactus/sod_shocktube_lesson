@@ -353,17 +353,14 @@ function record_conservation(filename::String,
     title_obs = Observable(@sprintf("Conservation — t = %.4e s", 0.0))
     Label(fig[0, :], title_obs, fontsize=14)
 
-    # 全データから y 軸範囲を事前計算 (マージン 10%)
-    ylims_cons = Vector{Tuple{Float64, Float64}}(undef, 3)
-    for k in 1:3
-        all_vals = Float64[]
-        for s in 1:n_solvers
-            append!(all_vals, diffs[s][k])
-        end
-        ymin, ymax = extrema(all_vals)
-        margin = max(abs(ymax - ymin) * 0.1, 1.0e-15)
-        ylims_cons[k] = (ymin - margin, ymax + margin)
+    # y 軸範囲: ρ, E は固定 (-1, 1), 運動量はデータから自動計算
+    mom_vals = Float64[]
+    for s in 1:n_solvers
+        append!(mom_vals, diffs[s][2])
     end
+    ymin_mom, ymax_mom = extrema(mom_vals)
+    margin_mom = max(abs(ymax_mom - ymin_mom) * 0.1, 1.0e-15)
+    ylims_cons = [(-1.0, 1.0), (ymin_mom - margin_mom, ymax_mom + margin_mom), (-1.0, 1.0)]
 
     obs_t = Observable(t_all[1:1])
     obs_diffs = [[Observable(diffs[s][k][1:1]) for k in 1:3] for s in 1:n_solvers]
