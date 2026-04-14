@@ -3,7 +3,14 @@
 一次元圧縮性オイラー方程式の数値解法を，非反応 SOD ショックチューブ問題から
 一段総括反応デトネーション計算へと段階的に習得するための Julia 実装集．
 
+書いて動くコードを作るための最低限の実装を示す．
+
 数値計算に関する背景は [`docs/`](docs/SODショックチューブから始める圧縮性反応オイラー方程式の数値計算.md) を参照．
+
+## 進め方
+[`docs/`](docs/SODショックチューブから始める圧縮性反応オイラー方程式の数値計算.md)を見て、Euler陽解法+Lax--Friedrichs methodで解くコードを実装するところから始めることをオススメする．
+
+詰まったら[src/]('src/step1_Euler_LF.jl')のコードを読んで確認する．
 
 ---
 
@@ -11,7 +18,7 @@
 
 | 依存 | 用途 |
 |------|------|
-| Julia ≥ 1.10 | 実行環境 |
+| Julia ≥ 1.10 | 実行言語 |
 | [CairoMakie](https://github.com/MakieOrg/Makie.jl) | グラフ描画・mp4 出力 |
 | [StaticArrays](https://github.com/JuliaArrays/StaticArrays.jl) | 状態ベクトルの高速演算 |
 | FFmpeg (システム) | CairoMakie が mp4 エンコードに使用 |
