@@ -10,7 +10,7 @@
 ## 進め方
 [`docs/`](docs/SODショックチューブから始める圧縮性反応オイラー方程式の数値計算.md)を見て、Euler陽解法+Lax--Friedrichs methodで解くコードを実装するところから始めることをオススメする．
 
-詰まったら[src/]('src/step1_Euler_LF.jl')のコードを読んで確認する．
+詰まったら[src/step1_Euler-LF.jl](src/step1_Euler-LF.jl)のコードを読んで確認する．
 
 ---
 
