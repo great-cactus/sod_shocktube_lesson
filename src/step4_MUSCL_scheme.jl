@@ -2,9 +2,9 @@
 1D Euler equations を MUSCL + HLL + SSPRK2 で解く
 """
 
-include("common.jl")
-include("riemann_solvers.jl")
-include("runge-kutta.jl")
+include(joinpath(@__DIR__, "common.jl"))
+include(joinpath(@__DIR__, "riemann_solvers.jl"))
+include(joinpath(@__DIR__, "runge-kutta.jl"))
 using .RungeKutta
 
 # ---------------------------------------------------------------------------

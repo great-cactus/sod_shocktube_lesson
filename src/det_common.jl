@@ -10,7 +10,7 @@ using Printf
 using CairoMakie
 using StaticArrays
 
-const Vec3 = SVector{3, Float64}
+const Vec4 = SVector{4, Float64}
 
 # ---------------------------------------------------------------------------
 # 定数
@@ -23,34 +23,34 @@ const R_UNIVERSAL = 8.314_462_62  # J/(mol·K)
 
 """Shock tube の計算条件."""
 struct Config
-    # 左状態
-    p_L::Float64
-    T_L::Float64
-    u_L::Float64
-    # 右状態
-    p_R::Float64
-    T_R::Float64
-    u_R::Float64
-    # 物性
-    MW::Float64
-    gamma::Float64
-    # 計算領域
-    x_left::Float64
-    x_right::Float64
-    x_center::Float64
-    dx::Float64
-    n_ghost::Int
-    # 時間
-    cfl::Float64
-    t_max::Float64
-    out_interval::Int
-    # プロット軸範囲 (rho, p, T, u) の (ymin, ymax)
-    ylims::Vector{Tuple{Float64, Float64}}
+  # 左状態
+  p_L::Float64
+  T_L::Float64
+  u_L::Float64
+  # 右状態
+  p_R::Float64
+  T_R::Float64
+  u_R::Float64
+  # 物性
+  MW::Float64
+  gamma::Float64
+  # 計算領域
+  x_left::Float64
+  x_right::Float64
+  x_center::Float64
+  dx::Float64
+  n_ghost::Int
+  # 時間
+  cfl::Float64
+  t_max::Float64
+  out_interval::Int
+  # プロット軸範囲 (rho, p, T, u) の (ymin, ymax)
+  ylims::Vector{Tuple{Float64, Float64}}
 end
 
 """理想気体の密度 rho = p * MW / (R * T)."""
 function get_rho(p::Float64, T::Float64, MW::Float64)::Float64
-    return p * MW / (R_UNIVERSAL * T)
+  return p * MW / (R_UNIVERSAL * T)
 end
 
 # ---------------------------------------------------------------------------
@@ -73,10 +73,10 @@ W = [rho, u, p] を返す.
 基本変数ベクトル [rho, u, p] (長さ3).
 """
 function conservative_to_primitive(U::Vec3, gamma::Float64)::Vec3
-    rho = U[1]
-    u = U[2] / U[1]
-    p = (gamma - 1.0) * (U[3] - 0.5 * U[2]^2 / U[1])
-    return Vec3(rho, u, p)
+  rho = U[1]
+  u = U[2] / U[1]
+  p = (gamma - 1.0) * (U[3] - 0.5 * U[2]^2 / U[1])
+  return Vec3(rho, u, p)
 end
 
 """
@@ -93,16 +93,16 @@ U = [rho, rho*u, rho*E] を返す.
 保存変数ベクトル [rho, rho*u, rho*E] (長さ3).
 """
 function primitive_to_conservative(W::Vec3, gamma::Float64)::Vec3
-    rho, u, p = W[1], W[2], W[3]
-    rho_u = rho * u
-    rho_E = p / (gamma - 1.0) + 0.5 * rho * u^2
-    return Vec3(rho, rho_u, rho_E)
+  rho, u, p = W[1], W[2], W[3]
+  rho_u = rho * u
+  rho_E = p / (gamma - 1.0) + 0.5 * rho * u^2
+  return Vec3(rho, rho_u, rho_E)
 end
 
 """
 保存変数から Euler 方程式のフラックスベクトル F(U) を計算する.
 
-F = [rho*u, rho*u^2 + p, u*(rho*E + p)]
+F = [rho*u, rho*u^2 + p, u*(rho*E + p), rho*lambda*u]
 
 # Args
 - `U`:     1セルの保存変数ベクトル (長さ3).
@@ -112,11 +112,12 @@ F = [rho*u, rho*u^2 + p, u*(rho*E + p)]
 フラックスベクトル (長さ3).
 """
 function compute_flux(U::Vec3, gamma::Float64)::Vec3
-    p = (gamma - 1.0) * (U[3] - 0.5 * U[2]^2 / U[1])
-    F1 = U[2]                          # rho * u
-    F2 = U[2]^2 / U[1] + p            # rho * u^2 + p
-    F3 = U[2] / U[1] * (U[3] + p)     # u * (rho*E + p)
-    return Vec3(F1, F2, F3)
+  p = (gamma - 1.0) * (U[3] - 0.5 * U[2]^2 / U[1])
+  F1 = U[2]                          # rho * u
+  F2 = U[2]^2 / U[1] + p            # rho * u^2 + p
+  F3 = U[2] / U[1] * (U[3] + p)     # u * (rho*E + p)
+  F4 = U[2] / U[1] * U[4]
+  return Vec3(F1, F2, F3)
 end
 
 # ---------------------------------------------------------------------------
@@ -137,7 +138,7 @@ a = sqrt(gamma * p / rho)
 音速 [m/s].
 """
 function sound_speed(p::Float64, rho::Float64, gamma::Float64)::Float64
-    return sqrt(gamma * p / rho)
+  return sqrt(gamma * p / rho)
 end
 
 # ---------------------------------------------------------------------------
@@ -159,18 +160,18 @@ CFL 条件を満たす時間刻み幅を計算する.
 時間刻み幅 dt [s].
 """
 function compute_dt(U_arr::Vector{Vec3}, dx::Float64,
-                    cfl::Float64, gamma::Float64)::Float64
-    max_speed = 0.0
-    @inbounds for i in eachindex(U_arr)
-        W = conservative_to_primitive(U_arr[i], gamma)
-        rho, u, p = W[1], W[2], W[3]
-        a = sound_speed(p, rho, gamma)
-        speed = abs(u) + a
-        if speed > max_speed
-            max_speed = speed
-        end
+                  cfl::Float64, gamma::Float64)::Float64
+  max_speed = 0.0
+  for i in eachindex(U_arr)
+    W = conservative_to_primitive(U_arr[i], gamma)
+    rho, u, p = W[1], W[2], W[3]
+    a = sound_speed(p, rho, gamma)
+    speed = abs(u) + a
+    if speed > max_speed
+      max_speed = speed
     end
-    return cfl * dx / max_speed
+  end
+  return cfl * dx / max_speed
 end
 
 # ---------------------------------------------------------------------------
@@ -188,30 +189,30 @@ end
 - `U_arr`: 保存変数の配列 (Vector{Vec3}).
 """
 function create_initial_condition(cfg::Config)
-    n_cells = round(Int, (cfg.x_right - cfg.x_left) / cfg.dx) + 1
-    n_points = n_cells + 2 * cfg.n_ghost
+  n_cells = round(Int, (cfg.x_right - cfg.x_left) / cfg.dx) + 1
+  n_points = n_cells + 2 * cfg.n_ghost
 
-    rho_L = get_rho(cfg.p_L, cfg.T_L, cfg.MW)
-    rho_R = get_rho(cfg.p_R, cfg.T_R, cfg.MW)
+  rho_L = get_rho(cfg.p_L, cfg.T_L, cfg.MW)
+  rho_R = get_rho(cfg.p_R, cfg.T_R, cfg.MW)
 
-    # 座標 (ゴーストセル含む)
-    x = Vector{Float64}(undef, n_points)
-    for i in 1:n_points
-        x[i] = cfg.x_left - cfg.n_ghost * cfg.dx + cfg.dx * (i - 1)
+  # 座標 (ゴーストセル含む)
+  x = Vector{Float64}(undef, n_points)
+  for i in 1:n_points
+    x[i] = cfg.x_left - cfg.n_ghost * cfg.dx + cfg.dx * (i - 1)
+  end
+
+  # 基本変数 → 保存変数
+  U_arr = Vector{Vec3}(undef, n_points)
+  for i in 1:n_points
+    if x[i] < cfg.x_center
+      W = Vec3(rho_L, cfg.u_L, cfg.p_L)
+    else
+      W = Vec3(rho_R, cfg.u_R, cfg.p_R)
     end
+    U_arr[i] = primitive_to_conservative(W, cfg.gamma)
+  end
 
-    # 基本変数 → 保存変数
-    U_arr = Vector{Vec3}(undef, n_points)
-    for i in 1:n_points
-        if x[i] < cfg.x_center
-            W = Vec3(rho_L, cfg.u_L, cfg.p_L)
-        else
-            W = Vec3(rho_R, cfg.u_R, cfg.p_R)
-        end
-        U_arr[i] = primitive_to_conservative(W, cfg.gamma)
-    end
-
-    return x, U_arr
+  return x, U_arr
 end
 
 # ---------------------------------------------------------------------------
@@ -231,15 +232,15 @@ end
 - `i_end`:   内部セルの終了インデックス.
 """
 function apply_bc!(U::Vector{Vec3}, cfg::Config, i_start::Int, i_end::Int)
-    for g in 1:cfg.n_ghost
-        # 左壁: 内部セルをミラーリング
-        Ui = U[i_start + g - 1]
-        U[i_start - g] = Vec3(Ui[1], -Ui[2], Ui[3])
+  for g in 1:cfg.n_ghost
+    # 左壁: 内部セルをミラーリング
+    Ui = U[i_start + g - 1]
+    U[i_start - g] = Vec3(Ui[1], -Ui[2], Ui[3])
 
-        # 右壁: 内部セルをミラーリング
-        Uj = U[i_end - g + 1]
-        U[i_end + g] = Vec3(Uj[1], -Uj[2], Uj[3])
-    end
+    # 右壁: 内部セルをミラーリング
+    Uj = U[i_end - g + 1]
+    U[i_end + g] = Vec3(Uj[1], -Uj[2], Uj[3])
+  end
 end
 
 # ---------------------------------------------------------------------------
@@ -261,12 +262,12 @@ end
 Vec3(Σρ·dx, Σρu·dx, ΣρE·dx).
 """
 function compute_total_conserved(U_arr::Vector{Vec3}, dx::Float64,
-                                  i_start::Int, i_end::Int)::Vec3
-    total = Vec3(0.0, 0.0, 0.0)
-    @inbounds for i in i_start:i_end
-        total = total + U_arr[i] * dx
-    end
-    return total
+                                i_start::Int, i_end::Int)::Vec3
+  total = Vec3(0.0, 0.0, 0.0)
+  for i in i_start:i_end
+    total = total + U_arr[i] * dx
+  end
+  return total
 end
 
 include("plotting.jl")

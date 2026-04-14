@@ -2,9 +2,9 @@
 1D Euler equations を WENO5 / WENO5-Z+ + HLL + SSPRK3 で解く
 """
 
-include("common.jl")
-include("riemann_solvers.jl")
-include("runge-kutta.jl")
+include(joinpath(@__DIR__, "common.jl"))
+include(joinpath(@__DIR__, "riemann_solvers.jl"))
+include(joinpath(@__DIR__, "runge-kutta.jl"))
 using .RungeKutta
 
 # ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ WENO5 左バイアス再構成.
 """
 function WENO5_left(F_mm::Vec3, F_m::Vec3, F_i::Vec3, F_p::Vec3, F_pp::Vec3)::Vec3
     d_0, d_1, d_2 = 1/10, 6/10, 3/10
-    SMALL = 1e-6
+    SMALL = 1e-10
 
     results = MVector{3, Float64}(undef)
     for j in 1:3
@@ -55,7 +55,7 @@ WENO5 右バイアス再構成.
 """
 function WENO5_right(F_mm::Vec3, F_m::Vec3, F_i::Vec3, F_p::Vec3, F_pp::Vec3)::Vec3
     d_0, d_1, d_2 = 3/10, 6/10, 1/10   # 左バイアスと d_0, d_2 を交換
-    SMALL = 1e-6
+    SMALL = 1e-10
 
     results = MVector{3, Float64}(undef)
     for j in 1:3
@@ -94,7 +94,7 @@ WENO5-Z+ 左バイアス再構成.
 function WENO5zp_left(F_mm::Vec3, F_m::Vec3, F_i::Vec3, F_p::Vec3, F_pp::Vec3)::Vec3
     p = 2
     d_0, d_1, d_2 = 1/10, 6/10, 3/10
-    SMALL = 1e-6
+    SMALL = 1e-10
 
     results = MVector{3, Float64}(undef)
     for j in 1:3

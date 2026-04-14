@@ -4,7 +4,7 @@ Sod shock tube: numerical solver using Lax-Friedrichs scheme.
 1D Euler equations を Lax-Friedrichs flux + Forward Euler で解く
 """
 
-include("common.jl")
+include(joinpath(@__DIR__, "common.jl"))
 
 # ---------------------------------------------------------------------------
 # Lax-Friedrichs flux

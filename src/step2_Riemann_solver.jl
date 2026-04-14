@@ -2,8 +2,8 @@
 1D Euler equations を Riemann solver + Forward Euler で解く
 """
 
-include("common.jl")
-include("riemann_solvers.jl")
+include(joinpath(@__DIR__, "common.jl"))
+include(joinpath(@__DIR__, "riemann_solvers.jl"))
 
 # ---------------------------------------------------------------------------
 # メインループ
