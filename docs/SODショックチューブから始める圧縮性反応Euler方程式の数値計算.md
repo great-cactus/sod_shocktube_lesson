@@ -1,6 +1,6 @@
 ## 1. はじめに
 
-これは一次元圧縮性オイラー方程式系の数値解法を，非反応系（SOD shock tube）から一段総括反応デトネーション計算へ段階的に習得するための手引書である．
+これは一次元圧縮性Euler方程式系の数値解法を，非反応系（SOD shock tube）から一段総括反応デトネーション計算へ段階的に習得するための手引書である．
 
 前提知識として，偏微分方程式の基礎的な取り扱い（保存則の概念，特性線の考え方）および熱力学の基礎（理想気体の状態方程式，エンタルピ，内部エネルギなど）を仮定する．
 
@@ -12,9 +12,9 @@
 
 ## 2. 支配方程式
 
-### 2.1 オイラー方程式
+### 2.1 Euler方程式
 
-一次元圧縮性非反応オイラー方程式は，質量・運動量・エネルギーの保存則からなり，以下の保存形で書ける：
+一次元圧縮性非反応Euler方程式は，質量・運動量・エネルギーの保存則からなり，以下の保存形で書ける：
 
 $$
 \frac{\partial \boldsymbol{U}}{\partial t} + \frac{\partial \boldsymbol{F}}{\partial x} = \boldsymbol{0},
@@ -53,8 +53,8 @@ $$
 
 二種類の変数表現を場面に応じて使い分ける：
 
-- **保存変数（conservative variables）**：$\boldsymbol{U} = (\rho,\, \rho u,\, \rho E)^\top$
-- **原始変数（primitive variables）**：$\boldsymbol{W} = (\rho,\, u,\, p)^\top$
+- **保存変数（conservative variables）**：$\boldsymbol{U} = (\rho, \rho u, \rho E)^\top$
+- **原始変数（primitive variables）**：$\boldsymbol{W} = (\rho, u, p)^\top$
 
 保存変数は，有限体積法における保存則の離散化と直接対応するため，解の更新（時間発展）に用いる．
 一方，原始変数は物理的な解釈が明瞭なので，後処理などで使われる．
@@ -71,9 +71,9 @@ $$
 $$
 U_1 = \rho, \qquad U_2 = \rho u, \qquad U_3 = \frac{p}{\gamma - 1} + \frac{1}{2} \rho u^2
 $$
-### 2.3 反応性オイラー方程式への拡張
+### 2.3 反応性Euler方程式への拡張
 
-一段総括反応を扱うために，反応進行度 $\lambda$（$\lambda = 0$：未反応，$\lambda = 1$：完全反応）を導入し，その輸送方程式を追加する．反応性オイラー方程式は
+一段総括反応を扱うために，反応進行度 $\lambda$（$\lambda = 0$：未反応，$\lambda = 1$：完全反応）を導入し，その輸送方程式を追加する．反応性Euler方程式は
 
 $$
 \frac{\partial \boldsymbol{U}}{\partial t} + \frac{\partial \boldsymbol{F}}{\partial x} = \boldsymbol{S},
@@ -123,7 +123,7 @@ $$
 
 ### 3.1 有限体積法
 
-計算領域 $[x_L,\, x_R]$ を $N$ 個のセルに分割する．$i$ 番目のセルの中心を $x_i$，セル幅を $\Delta x$ とする．有限体積法では，セル平均値
+計算領域 $[x_L, x_R]$ を $N$ 個のセルに分割する．$i$ 番目のセルの中心を $x_i$，セル幅を $\Delta x$ とする．有限体積法では，セル平均値
 
 $$
 \bar{\boldsymbol{U}}_i(t) = \frac{1}{\Delta x} \int_{x_{i-1/2}}^{x_{i+1/2}} \boldsymbol{U}(x,t) \, dx
@@ -270,13 +270,13 @@ To be done
 
 ---
 
-## 4. リーマン問題と数値流束
+## 4. Riemann問題と数値流束
 
-### 4.1 リーマン問題の物理的意味
+### 4.1 Riemann問題の物理的意味
 
-有限体積法のセル界面 $x_{i+1/2}$ では，一般に左右で異なる状態 $(\boldsymbol{U}_L,\, \boldsymbol{U}_R)$ が隣接する．この不連続を初期条件とする初期値問題が**リーマン問題**である．
+有限体積法のセル界面 $x_{i+1/2}$ では，一般に左右で異なる状態 $(\boldsymbol{U}_L,\, \boldsymbol{U}_R)$ が隣接する．この不連続を初期条件とする初期値問題が**Riemann問題**である．
 
-Euler方程式のリーマン問題の解は，膨張波（rarefaction wave），接触不連続（contact discontinuity），衝撃波（shock wave）の3つの波で構成される自己相似解を持つ．数値流束関数は，このリーマン問題の解（厳密解または近似解）に基づいてセル界面での流束を評価する．
+Euler方程式のRiemann問題の解は，膨張波（rarefaction wave），接触不連続（contact discontinuity），衝撃波（shock wave）の3つの波で構成される自己相似解を持つ．数値流束関数は，このRiemann問題の解（厳密解または近似解）に基づいてセル界面での流束を評価する．
 
 ### 4.2 数値流束関数の選択肢
 
@@ -357,13 +357,13 @@ $$
 W_{i+1,L} = W_{i+1} - \frac{1}{2}\,\phi(r_{i+1})\,\Delta_{i+1/2}, \qquad r_{i+1} = \frac{\Delta_{i+3/2}}{\Delta_{i+1/2}}
 $$
 
-と再構築する（$\Delta_{i+1/2} = 0$ のときは $\phi = 0$ とする）．界面 $x_{i+1/2}$ のリーマン問題の左右状態は $(W_{i,R},\, W_{i+1,L})$ となる．
+と再構築する（$\Delta_{i+1/2} = 0$ のときは $\phi = 0$ とする）．界面 $x_{i+1/2}$ のRiemann問題の左右状態は $(W_{i,R},\, W_{i+1,L})$ となる．
 
 **代表的なリミタ関数** $\phi(r)$：
 
-- **minmod**：$\phi(r) = \max(0,\, \min(r,\, 1))$  
-- **van Leer**：$\phi(r) = \dfrac{r + |r|}{1 + |r|}$  
-- **superbee**：$\phi(r) = \max\!\bigl(0,\, \min(2r,\, 1),\, \min(r,\, 2)\bigr)$  
+- **minmod**：$\phi(r) = \max(0,\, \min(r,\, 1))$
+- **van Leer**：$\phi(r) = \dfrac{r + |r|}{1 + |r|}$
+- **superbee**：$\phi(r) = \max\!\bigl(0,\, \min(2r,\, 1),\, \min(r,\, 2)\bigr)$
 
 ### 4.4 高次精度化：WENO5 再構築
 
@@ -485,15 +485,15 @@ To be done
 
 ## 7. 補遺
 
-### A. ヤコビアン行列と特性速度の導出
+### A. Jacobian行列と特性速度の導出
 
-非反応オイラー方程式を準線形形式
+非反応Euler方程式を準線形形式
 
 $$
 \frac{\partial \boldsymbol{U}}{\partial t} + \boldsymbol{A} \frac{\partial \boldsymbol{U}}{\partial x} = \boldsymbol{0}, \qquad \boldsymbol{A} = \frac{\partial \boldsymbol{F}}{\partial \boldsymbol{U}}
 $$
 
-と書いたとき，ヤコビアン $\boldsymbol{A}$ の固有値が特性速度であり，
+と書いたとき，Jacobian $\boldsymbol{A}$ の固有値が特性速度であり，
 
 $$
 \lambda_1 = u - a, \qquad \lambda_2 = u, \qquad \lambda_3 = u + a
@@ -517,7 +517,7 @@ $$
 
 ### 参考文献
 
-- E.F. Toro, *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed., Springer, 2009.（リーマンソルバ・有限体積法・SOD shock tube の厳密解に関する標準的教科書）
+- E.F. Toro, *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed., Springer, 2009.（Riemannソルバ・有限体積法・SOD shock tube の厳密解に関する標準的教科書）
 - R.J. LeVeque, *Finite Volume Methods for Hyperbolic Problems*, Cambridge University Press, 2002.
 - W. Fickett and W.C. Davis, *Detonation: Theory and Experiment*, Dover, 2000.（デトネーション理論の古典的参考書）
 - J.H.S. Lee, *The Detonation Phenomenon*, Cambridge University Press, 2008.（デトネーションの物理に関する包括的参考書）

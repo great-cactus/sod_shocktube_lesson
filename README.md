@@ -1,14 +1,14 @@
-# SOD Shock Tube から学ぶ圧縮性オイラー方程式の数値計算
+# SOD Shock Tube から学ぶ圧縮性Euler方程式の数値計算
 
-一次元圧縮性オイラー方程式の数値解法を，非反応 SOD ショックチューブ問題から
+一次元圧縮性Euler方程式の数値解法を，非反応 SOD ショックチューブ問題から
 一段総括反応デトネーション計算へと段階的に習得するための Julia 実装集．
 
 書いて動くコードを作るための最低限の実装を示す．
 
-数値計算に関する背景は [`docs/`](docs/SODショックチューブから始める圧縮性反応オイラー方程式の数値計算.md) を参照．
+数値計算に関する背景は [`docs/`](docs/SODショックチューブから始める圧縮性反応Euler方程式の数値計算.md) を参照．
 
 ## 進め方
-[`docs/`](docs/SODショックチューブから始める圧縮性反応オイラー方程式の数値計算.md)を見て、Euler陽解法+Lax--Friedrichs methodで解くコードを実装するところから始めることをオススメする．
+[`docs/`](docs/SODショックチューブから始める圧縮性反応Euler方程式の数値計算.md)を見て、Euler陽解法+Lax--Friedrichs methodで解くコードを実装するところから始めることをオススメする．
 
 詰まったら[src/step1_Euler-LF.jl](src/step1_Euler-LF.jl)のコードを読んで確認する．
 
@@ -37,11 +37,11 @@ julia --project=. -e 'import Pkg; Pkg.instantiate()'
 .
 ├── src/
 │   ├── step1_Euler-LF.jl       # Lax-Friedrichs 流束 + 前進 Euler 法
-│   ├── step2_Riemann_solver.jl  # HLL / HLLC リーマンソルバ
+│   ├── step2_Riemann_solver.jl  # HLL / HLLC Riemannソルバ
 │   ├── step3_Runge-Kutta.jl     # HLL + SSPRK3 / RK4 比較
 │   ├── step4_MUSCL_scheme.jl    # MUSCL 再構築 + HLL + SSPRK2
 │   ├── step5_WENO_scheme.jl     # WENO5-JS / Z+ / Z+M + HLL + SSPRK3
-│   ├── step6_detonation.jl      # 反応性オイラー方程式（デトネーション）[WIP]
+│   ├── step6_detonation.jl      # 反応性Euler方程式（デトネーション）[WIP]
 │   ├── common.jl                # Config・状態変数変換・初期条件（非反応系）
 │   ├── det_common.jl            # Config・状態変数変換・初期条件（反応系）
 │   ├── exact_solution.jl        # SOD 問題の厳密解
@@ -49,7 +49,7 @@ julia --project=. -e 'import Pkg; Pkg.instantiate()'
 │   ├── runge-kutta.jl           # Butcher tableau ベース汎用 RK ソルバ
 │   └── plotting.jl              # プロット・動画生成ユーティリティ
 └── docs/
-    └── SODショックチューブから始める圧縮性反応オイラー方程式の数値計算.md
+    └── SODショックチューブから始める圧縮性反応Euler方程式の数値計算.md
 ```
 
 各ステップは独立したスクリプトで，`julia src/stepN_*.jl` で直接実行できる．
@@ -68,6 +68,6 @@ julia --project=. src/step5_WENO_scheme.jl # WENO5 比較
 
 ## TODO
 
-- [ ] 反応性オイラー方程式を完成させる
+- [ ] 反応性Euler方程式を完成させる
 - [ ] 検証問題 II（一段総括反応デトネーション）を記述
 - [ ] 数値計算スキームやソルバの物理数学的背景の記述
